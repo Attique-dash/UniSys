@@ -1,100 +1,231 @@
+"use client";
+
 import Image from "next/image";
+import { useState, useEffect } from "react";
+import { IoHomeSharp, IoPersonAddSharp } from "react-icons/io5";
+import { FaUsers } from "react-icons/fa";
+import { MdEdit, MdDelete, MdAdd } from "react-icons/md";
+import logo from "./images/logo.png";
+import { doLogout } from "@/app/firebase/auth";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/app/firebase/firebase";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleLogout = async () => {
+    try {
+      await doLogout();
+      router.push("/login");
+    } catch (err) {
+      console.error("Failed to log out:", err);
+    }
+  };
+
+  const [tasks, setTasks] = useState<{ id: string; student: string; tasks: string[] }[]>([]);
+  const [formVisible, setFormVisible] = useState(false);
+  const [formData, setFormData] = useState<{ student: string; tasks: string }>(
+    { student: "", tasks: "" });
+    const [editIndex, setEditIndex] = useState<number | null>(null);
+    const [formErrors, setFormErrors] = useState({ student: "", tasks: "" });
+
+  const tasksCollectionRef = collection(db, "tasks");
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const data = await getDocs(tasksCollectionRef);
+        setTasks(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })) as { id: string; student: string; tasks: string[] }[]);
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+      }
+    };
+    fetchTasks();
+  }, []);
+
+  const handleFormClose = () => {
+    setFormVisible(false);
+    setFormData({ student: "", tasks: "" });
+    setEditIndex(null);
+    setFormErrors({ student: "", tasks: "" });
+  };
+
+  const handleFormSubmit = async () => {
+    const errors = { student: "", tasks: "" };
+
+    if (!formData.student.trim()) {
+      errors.student = "Student Name is required.";
+    }
+    if (!formData.tasks.trim()) {
+      errors.tasks = "Tasks are required.";
+    }
+
+    if (errors.student || errors.tasks) {
+      setFormErrors(errors);
+      return;
+    }
+
+    const taskList = formData.tasks.split(",").map((task) => task.trim());
+    try {
+      if (editIndex !== null) {
+        const taskId = tasks[editIndex].id;
+        const taskDoc = doc(db, "tasks", taskId);
+        await updateDoc(taskDoc, { student: formData.student, tasks: taskList });
+      } else {
+        await addDoc(tasksCollectionRef, { student: formData.student, tasks: taskList });
+      }
+
+      handleFormClose();
+      const data = await getDocs(tasksCollectionRef);
+      setTasks(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })) as { id: string; student: string; tasks: string[] }[]);
+    } catch (err) {
+      console.error("Error submitting form:", err);
+    }
+  };
+
+  const handleDelete = async (index : number) => {
+    try {
+      const taskId = tasks[index].id;
+      const taskDoc = doc(db, "tasks", taskId);
+      await deleteDoc(taskDoc);
+
+      const data = await getDocs(tasksCollectionRef);
+      setTasks(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })) as { id: string; student: string; tasks: string[] }[]);
+    } catch (err) {
+      console.error("Error deleting task:", err);
+    }
+  };
+
+  const handleEdit = (index: number) => {
+    setFormData({ student: tasks[index].student, tasks: tasks[index].tasks.join(",") });
+    setEditIndex(index);
+    setFormVisible(true);
+  };
+  
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <header className="flex items-center justify-between p-4 bg-gray-700 text-white shadow-md sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <Image src={logo} alt="Logo" width={60} height={60} />
+          <span className="text-xl font-bold">UniSys</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <div className="text-lg font-medium">Admin Panel</div>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-red-600 rounded hover:bg-red-500 transition duration-300"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+          Logout
+        </button>
+      </header>
+
+      <div className="flex flex-1">
+        <nav className="w-64 bg-gray-200 p-4 shadow-inner">
+          <ul className="space-y-4">
+            <li>
+              <a href="/" className="flex p-2 text-lg rounded hover:bg-gray-300 text-gray-700">
+                <IoHomeSharp className="mr-5 mt-1" />
+                Home
+              </a>
+            </li>
+            <li>
+              <a href="/adduser" className="flex p-2 text-lg rounded hover:bg-gray-300 text-gray-700">
+                <IoPersonAddSharp className="mr-5 mt-1" />
+                Add User
+              </a>
+            </li>
+            <li>
+              <a href="/showuser" className="flex p-2 text-lg rounded hover:bg-gray-300 text-gray-700">
+                <FaUsers className="mr-5 mt-1" />
+                Show Users
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <main className="flex-1 p-8 bg-white">
+          <h1 className="text-2xl text-center font-bold mb-4">Users Info</h1>
+          <div className="grid grid-cols-2 gap-6">
+            {tasks.map((item, index) => (
+              <div key={item.id} className="bg-gray-100 p-4 rounded-lg shadow-md flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">{item.student}</h2>
+                  {item.tasks.map((task, idx) => (
+                    <p key={idx} className="text-sm text-gray-600">{task}</p>
+                  ))}
+                </div>
+                <div className="flex space-x-3">
+                  <button onClick={() => handleEdit(index)} className="text-blue-500 hover:text-blue-700">
+                    <MdEdit size={24} />
+                  </button>
+                  <button onClick={() => handleDelete(index)} className="text-red-500 hover:text-red-700">
+                    <MdDelete size={24} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setFormVisible(true)}
+              className="bg-gray-500 text-white rounded-full p-3 shadow-lg hover:bg-gray-600 transition duration-300"
+            >
+              <MdAdd size={36} />
+            </button>
+          </div>
+        </main>
+      </div>
+
+      {formVisible && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-lg w-[90%] max-w-lg relative">
+            <button
+              onClick={handleFormClose}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-6 text-center">{editIndex !== null ? "Edit Student Task" : "Add Student Task"}</h2>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Student Name</label>
+              <input
+                type="text"
+                value={formData.student}
+                onChange={(e) => setFormData({ ...formData, student: e.target.value })}
+                className={`mt-1 block w-full px-4 py-2 bg-gray-100 border ${
+                  formErrors.student ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none`}
+              />
+              {formErrors.student && <p className="text-red-500 text-sm mt-1">{formErrors.student}</p>}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tasks</label>
+              <input
+                type="text"
+                value={formData.tasks}
+                onChange={(e) => setFormData({ ...formData, tasks: e.target.value })}
+                className={`mt-1 block w-full px-4 py-2 bg-gray-100 border ${
+                  formErrors.tasks ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none`}
+              />
+              {formErrors.tasks && <p className="text-red-500 text-sm mt-1">{formErrors.tasks}</p>}
+            </div>
+
+            <button
+              onClick={handleFormSubmit}
+              className="w-full bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition duration-300"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      <footer className="p-4 bg-gray-800 text-center text-white">
+        © 2025 UniSys. All rights reserved.
       </footer>
     </div>
   );
