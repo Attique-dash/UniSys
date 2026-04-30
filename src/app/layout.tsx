@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/app/contexts/authContext";
-import "@/app/globals.css"; 
+import { ClientOnly } from "@/app/components/ClientOnly";
+import "@/app/globals.css";
 import React from "react";
 
 export const metadata = {
@@ -13,11 +14,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ClientOnly>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ClientOnly>
       </body>
     </html>
   );
