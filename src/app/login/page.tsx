@@ -1,147 +1,197 @@
+// app/login/page.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaGoogle, FaEnvelope, FaLock } from "react-icons/fa";
 import Image from "next/image";
 import logo from "../images/logo.png";
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from "../firebase/auth";
 import { useAuth } from "../contexts/authContext";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Login() {
-  const { userLoggedIn } = useAuth();
+  const { userLoggedIn, currentUser, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
-  
-    useEffect(() => {
-      if (userLoggedIn) {
-        router.push("/");
-      }
-    }, [userLoggedIn, router]);
 
-  const togglePasswordVisibility = () => {
-    setShowPassword((prev) => !prev);
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("rememberedEmail");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && userLoggedIn && currentUser) {
+      redirectByRole(currentUser.role);
+    }
+  }, [userLoggedIn, loading, currentUser]);
+
+  const redirectByRole = (role: string | null) => {
+    switch (role) {
+      case "admin": router.push("/"); break;
+      case "teacher": router.push("/teacher"); break;
+      case "cr": router.push("/cr"); break;
+      case "student": router.push("/student"); break;
+      default: router.push("/");
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError("Email and Password are required.");
-      return;
-    }
-  
-    const lastLoggedInEmail = localStorage.getItem("lastLoggedInEmail");
-  
-    if (lastLoggedInEmail && lastLoggedInEmail !== email) {
-      setError("This email does not match the previously logged-in email.");
-      return;
-    }
-  
+    if (!email || !password) { setError("Email and Password are required."); return; }
     setError("");
     try {
       setIsSigningIn(true);
       await doSignInWithEmailAndPassword(email, password);
-      localStorage.setItem("lastLoggedInEmail", email);
-      router.push("/");
-    } catch (err: any) {
-      console.error("Error during login:", err);
+      if (rememberMe) {
+        localStorage.setItem("rememberedEmail", email);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+    } catch {
       setError("Invalid email or password. Please try again.");
     } finally {
       setIsSigningIn(false);
     }
   };
-  
-  
 
-  const handleGoogleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError("");
     try {
       setIsSigningIn(true);
       await doSignInWithGoogle();
-      router.push("/");
-    } catch (err) {
+    } catch {
       setError("Failed to log in with Google.");
-      console.error(err);
     } finally {
       setIsSigningIn(false);
     }
   };
 
-  if (userLoggedIn) {
-    router.push("/");
-    return null;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <>
-      <header className="flex items-center justify-between p-4 bg-gray-700 text-white shadow-md sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <Image src={logo} alt="Logo" width={60} height={60} />
-          <span className="text-xl font-bold">UniSys</span>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50 flex flex-col">
+      <header className="flex items-center gap-3 px-8 py-5 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+        <Image src={logo} alt="Logo" width={44} height={44} className="rounded-lg shadow-sm" />
+        <span className="text-xl font-bold text-gray-800 tracking-tight">UniSys</span>
       </header>
-      <div className="flex items-center justify-center">
-        <div className="bg-gray-200 p-8 rounded-lg shadow-lg max-w-sm w-full mt-16">
-          <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">
-            Welcome 
-          </h1>
-          {error && <p className="text-red-500 text-center">{error}</p>}
-          <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <label htmlFor="email" className="block text-base font-medium text-gray-700">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-4 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                required
-              />
+
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back</h1>
+              <p className="text-gray-500 text-sm">Sign in to your UniSys account</p>
             </div>
-            <div className="mb-4 relative">
-              <label htmlFor="password" className="block text-base font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-4 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                required
-              />
+
+            {error && (
+              <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaEnvelope className="inline mr-2 text-gray-400" size={14} />
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@university.edu"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaLock className="inline mr-2 text-gray-400" size={14} />
+                  Password
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition pr-12"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((p) => !p)}
+                  className="absolute right-4 top-[42px] text-gray-400 hover:text-gray-600 transition"
+                >
+                  {showPassword ? <FaEye size={16} /> : <FaEyeSlash size={16} />}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                  />
+                  Remember me
+                </label>
+                <Link href="/forgot-password" className="text-sm text-blue-500 hover:text-blue-600 transition">
+                  Forgot password?
+                </Link>
+              </div>
+
               <button
-                type="button"
-                onClick={togglePasswordVisibility}
-                className="absolute inset-y-0 right-3 mt-7 flex items-center text-gray-500"
+                type="submit"
+                disabled={isSigningIn}
+                className="w-full py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl transition duration-200 mt-2 shadow-md hover:shadow-lg"
               >
-                {showPassword ? <FaEye size={18} /> : <FaEyeSlash size={18} />}
+                {isSigningIn ? "Signing in..." : "Sign In"}
               </button>
+            </form>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs text-gray-400 uppercase tracking-widest">
+                <span className="bg-white px-3">or</span>
+              </div>
             </div>
+
             <button
-              type="submit"
-              className="w-full mt-6 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-300"
+              onClick={handleGoogleLogin}
               disabled={isSigningIn}
+              className="w-full py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-sm hover:shadow"
             >
-              {isSigningIn ? "Logging in..." : "Login"}
+              <FaGoogle className="text-red-500" size={18} />
+              Continue with Google
             </button>
-          </form>
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full mt-4 bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition duration-300"
-          >
-            Login with Google
-          </button>
+
+            <p className="text-center text-sm text-gray-500 mt-6">
+              Don't have an account?{" "}
+              <Link href="/register" className="text-blue-500 hover:text-blue-600 font-medium">
+                Contact admin
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
