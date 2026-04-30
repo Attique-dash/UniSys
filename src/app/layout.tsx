@@ -1,11 +1,12 @@
 import { AuthProvider } from "@/app/contexts/authContext";
 import { ClientOnly } from "@/app/components/ClientOnly";
+import { RouteGuard } from "@/app/components/RouteGuard";
 import "@/app/globals.css";
 import React from "react";
 
 export const metadata = {
   title: "UniSys",
-  description: "Your App Description",
+  description: "University Management System",
 };
 
 export default function RootLayout({
@@ -18,7 +19,7 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <ClientOnly>
           <AuthProvider>
-            {children}
+            <RouteGuard>{children}</RouteGuard>
           </AuthProvider>
         </ClientOnly>
       </body>
