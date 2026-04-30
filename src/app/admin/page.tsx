@@ -20,6 +20,7 @@ const NAV = [
 interface Task {
   id: string;
   student: string;
+  studentEmail?: string;
   studentId?: string;
   tasks: string[];
   createdAt: number;
@@ -32,7 +33,7 @@ export default function AdminPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [formVisible, setFormVisible] = useState(false);
-  const [formData, setFormData] = useState({ student: "", tasks: "", dueDate: "", status: "pending" });
+  const [formData, setFormData] = useState({ student: "", studentEmail: "", tasks: "", dueDate: "", status: "pending" });
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [formErrors, setFormErrors] = useState({ student: "", tasks: "" });
   const [activeTab, setActiveTab] = useState<"dashboard" | "tasks" | "bookmarks">("dashboard");
@@ -77,7 +78,7 @@ export default function AdminPage() {
 
   const handleFormClose = () => {
     setFormVisible(false);
-    setFormData({ student: "", tasks: "", dueDate: "", status: "pending" });
+    setFormData({ student: "", studentEmail: "", tasks: "", dueDate: "", status: "pending" });
     setEditIndex(null);
     setFormErrors({ student: "", tasks: "" });
   };
@@ -91,6 +92,7 @@ export default function AdminPage() {
     const taskList = formData.tasks.split(",").map((t) => t.trim()).filter(Boolean);
     const newTask = {
       student: formData.student,
+      studentEmail: formData.studentEmail || formData.student, // fallback to name if email not provided
       tasks: taskList,
       dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() : null,
       status: formData.status,
@@ -121,6 +123,7 @@ export default function AdminPage() {
   const handleEdit = (index: number) => {
     setFormData({
       student: tasks[index].student,
+      studentEmail: tasks[index].studentEmail || tasks[index].student,
       tasks: tasks[index].tasks.join(", "),
       dueDate: tasks[index].dueDate ? new Date(tasks[index].dueDate).toISOString().split('T')[0] : "",
       status: tasks[index].status,
@@ -327,6 +330,17 @@ export default function AdminPage() {
                   placeholder="Enter student name"
                 />
                 {formErrors.student && <p className="text-red-500 text-xs mt-1">{formErrors.student}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Student Email <span className="text-gray-400">(optional)</span></label>
+                <input
+                  type="email"
+                  value={formData.studentEmail}
+                  onChange={(e) => setFormData({ ...formData, studentEmail: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+                  placeholder="student@university.edu (for matching)"
+                />
               </div>
 
               <div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { FaUser, FaBookmark, FaCheckCircle, FaClock, FaFlagCheckered } from "react-icons/fa";
 import { MdDashboard, MdAssignment } from "react-icons/md";
-import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/app/firebase/firebase";
 import { Shell } from "@/app/components/Shell";
 import { useAuth } from "@/app/contexts/authContext";
@@ -31,23 +31,34 @@ export default function StudentPage() {
   const [activeTab, setActiveTab] = useState<"tasks" | "bookmarks">("tasks");
 
   const fetchTasks = async () => {
+    if (!currentUser?.email) {
+      setLoading(false);
+      return;
+    }
     try {
-      const q = query(collection(db, "tasks"), where("student", "==", currentUser?.name || ""));
+      // Query by student email instead of name for reliable matching
+      const q = query(collection(db, "tasks"), where("studentEmail", "==", currentUser.email));
       const data = await getDocs(q);
       setTasks(data.docs.map((d) => ({ id: d.id, ...d.data() } as Task)));
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      // Fallback: fetch all and filter by name if email field doesn't exist
+      try {
+        const allData = await getDocs(collection(db, "tasks"));
+        const allTasks = allData.docs.map((d) => ({ id: d.id, ...d.data() } as Task));
+        const filtered = allTasks.filter(t => 
+          t.student?.toLowerCase() === currentUser?.name?.toLowerCase()
+        );
+        setTasks(filtered);
+      } catch (fallbackError) {
+        console.error("Fallback error:", fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { fetchTasks(); }, [currentUser]);
-
-  const handleTaskComplete = async (taskId: string) => {
-    await updateDoc(doc(db, "tasks", taskId), { status: "completed" });
-    await fetchTasks();
-  };
 
   const stats = {
     total: tasks.length,
@@ -145,14 +156,6 @@ export default function StudentPage() {
                         </p>
                       )}
                     </div>
-                    {task.status !== "completed" && (
-                      <button
-                        onClick={() => handleTaskComplete(task.id)}
-                        className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition"
-                      >
-                        Mark Complete
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}

@@ -37,11 +37,14 @@ export default function Bookmarks() {
   const fetchBookmarks = async () => {
     if (!currentUser) return;
     try {
-      const q = query(bookmarksRef, where("uid", "==", currentUser.uid), orderBy("createdAt", "desc"));
+      // Use simple query without orderBy to avoid Firestore index requirement
+      const q = query(bookmarksRef, where("uid", "==", currentUser.uid));
       const snap = await getDocs(q);
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Bookmark));
-      setBookmarks(data);
-      setFilteredBookmarks(data);
+      // Sort client-side by createdAt descending
+      const sortedData = data.sort((a, b) => b.createdAt - a.createdAt);
+      setBookmarks(sortedData);
+      setFilteredBookmarks(sortedData);
     } catch (err) {
       console.error("Error fetching bookmarks:", err);
     } finally {
