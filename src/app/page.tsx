@@ -1,379 +1,314 @@
-// app/page.tsx
+// app/page.tsx - Landing Page
 "use client";
-import { useState, useEffect } from "react";
-import { IoHomeSharp, IoPersonAddSharp, IoStatsChart, IoDocumentText } from "react-icons/io5";
-import { FaUsers, FaBookmark, FaCheckCircle, FaClock, FaChartLine } from "react-icons/fa";
-import { MdEdit, MdDelete, MdAdd, MdDashboard } from "react-icons/md";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
-import { db } from "@/app/firebase/firebase";
-import { Shell } from "@/app/components/Shell";
-import Bookmarks from "@/app/components/Bookmarks";
-import { useAuth } from "@/app/contexts/authContext";
+import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
+import { FiArrowRight, FiCheck, FiUsers, FiBookOpen, FiAward, FiMenu, FiX } from "react-icons/fi";
+import { MdSchool, MdDashboard, MdAssignment, MdAnalytics } from "react-icons/md";
+import logo from "@/app/images/logo.png";
 
-const NAV = [
-  { href: "/", label: "Dashboard", icon: <MdDashboard /> },
-  { href: "/adduser", label: "Add User", icon: <IoPersonAddSharp /> },
-  { href: "/showuser", label: "Show Users", icon: <FaUsers /> },
-  { href: "/bookmarks", label: "Saved Sites", icon: <FaBookmark /> },
+const FEATURES = [
+  {
+    icon: <MdDashboard size={28} />,
+    title: "Smart Dashboard",
+    description: "Intuitive admin dashboard with real-time analytics and task management capabilities."
+  },
+  {
+    icon: <FiUsers size={28} />,
+    title: "User Management",
+    description: "Efficiently manage students, teachers, and administrators with role-based access."
+  },
+  {
+    icon: <MdAssignment size={28} />,
+    title: "Task Tracking",
+    description: "Assign, track, and monitor student tasks with status updates and due dates."
+  },
+  {
+    icon: <FiBookOpen size={28} />,
+    title: "Resource Library",
+    description: "Centralized bookmark management for educational resources and references."
+  },
+  {
+    icon: <MdAnalytics size={28} />,
+    title: "Progress Analytics",
+    description: "Track completion rates and performance metrics with visual insights."
+  },
+  {
+    icon: <FiAward size={28} />,
+    title: "Achievement System",
+    description: "Gamified learning experience with progress tracking and achievements."
+  }
 ];
 
-interface Task {
-  id: string;
-  student: string;
-  studentId?: string;
-  tasks: string[];
-  createdAt: number;
-  dueDate?: number;
-  status: "pending" | "in-progress" | "completed";
-}
+const STATS = [
+  { value: "10K+", label: "Active Students" },
+  { value: "500+", label: "Teachers" },
+  { value: "50K+", label: "Tasks Completed" },
+  { value: "99%", label: "Satisfaction Rate" }
+];
 
-export default function Home() {
-  const { currentUser } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
-  const [formVisible, setFormVisible] = useState(false);
-  const [formData, setFormData] = useState({ student: "", tasks: "", dueDate: "", status: "pending" });
-  const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [formErrors, setFormErrors] = useState({ student: "", tasks: "" });
-  const [activeTab, setActiveTab] = useState<"dashboard" | "tasks" | "bookmarks">("dashboard");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, inProgress: 0 });
-
-  const tasksCollectionRef = collection(db, "tasks");
-
-  const fetchTasks = async () => {
-    const data = await getDocs(tasksCollectionRef);
-    const tasksData = data.docs.map((d) => ({ ...d.data(), id: d.id })) as Task[];
-    setTasks(tasksData);
-    updateStats(tasksData);
-    return tasksData;
-  };
-
-  const updateStats = (tasksData: Task[]) => {
-    setStats({
-      total: tasksData.length,
-      completed: tasksData.filter(t => t.status === "completed").length,
-      pending: tasksData.filter(t => t.status === "pending").length,
-      inProgress: tasksData.filter(t => t.status === "in-progress").length,
-    });
-  };
-
-  useEffect(() => { fetchTasks(); }, []);
-
-  useEffect(() => {
-    let filtered = tasks;
-    if (searchTerm) {
-      filtered = filtered.filter(t => 
-        t.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.tasks.some(task => task.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(t => t.status === statusFilter);
-    }
-    setFilteredTasks(filtered);
-  }, [searchTerm, statusFilter, tasks]);
-
-  const handleFormClose = () => {
-    setFormVisible(false);
-    setFormData({ student: "", tasks: "", dueDate: "", status: "pending" });
-    setEditIndex(null);
-    setFormErrors({ student: "", tasks: "" });
-  };
-
-  const handleFormSubmit = async () => {
-    const errors = { student: "", tasks: "" };
-    if (!formData.student.trim()) errors.student = "Student Name is required.";
-    if (!formData.tasks.trim()) errors.tasks = "Tasks are required.";
-    if (errors.student || errors.tasks) { setFormErrors(errors); return; }
-
-    const taskList = formData.tasks.split(",").map((t) => t.trim()).filter(Boolean);
-    const newTask = {
-      student: formData.student,
-      tasks: taskList,
-      dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() : null,
-      status: formData.status,
-      createdAt: Date.now(),
-    };
-
-    if (editIndex !== null) {
-      await updateDoc(doc(db, "tasks", tasks[editIndex].id), newTask);
-    } else {
-      await addDoc(tasksCollectionRef, newTask);
-    }
-    handleFormClose();
-    await fetchTasks();
-  };
-
-  const handleDelete = async (index: number) => {
-    if (confirm("Are you sure you want to delete this task?")) {
-      await deleteDoc(doc(db, "tasks", tasks[index].id));
-      await fetchTasks();
-    }
-  };
-
-  const handleStatusChange = async (taskId: string, newStatus: string) => {
-    await updateDoc(doc(db, "tasks", taskId), { status: newStatus });
-    await fetchTasks();
-  };
-
-  const handleEdit = (index: number) => {
-    setFormData({
-      student: tasks[index].student,
-      tasks: tasks[index].tasks.join(", "),
-      dueDate: tasks[index].dueDate ? new Date(tasks[index].dueDate).toISOString().split('T')[0] : "",
-      status: tasks[index].status,
-    });
-    setEditIndex(index);
-    setFormVisible(true);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed": return "bg-green-100 text-green-700 border-green-200";
-      case "in-progress": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      default: return "bg-gray-100 text-gray-600 border-gray-200";
-    }
-  };
-
-  const StatCard = ({ title, value, icon, color }: any) => (
-    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-500 text-sm">{title}</p>
-          <p className="text-2xl font-bold text-gray-800 mt-1">{value}</p>
-        </div>
-        <div className={`p-3 rounded-full ${color}`}>{icon}</div>
-      </div>
-    </div>
-  );
+export default function LandingPage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <Shell panelTitle="Admin Panel" navItems={NAV}>
-      {/* Tabs */}
-      <div className="flex gap-1 mb-8 bg-white p-1 rounded-xl border border-gray-200 w-fit shadow-sm">
-        <button
-          onClick={() => setActiveTab("dashboard")}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-            activeTab === "dashboard" ? "bg-blue-500 text-white shadow-sm" : "text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          <IoStatsChart size={16} /> Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab("tasks")}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-            activeTab === "tasks" ? "bg-blue-500 text-white shadow-sm" : "text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          <IoDocumentText size={16} /> Tasks
-        </button>
-        <button
-          onClick={() => setActiveTab("bookmarks")}
-          className={`px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-            activeTab === "bookmarks" ? "bg-blue-500 text-white shadow-sm" : "text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          <FaBookmark size={14} /> Bookmarks
-        </button>
-      </div>
-
-      {activeTab === "dashboard" && (
-        <div>
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-800">Dashboard Overview</h1>
-            <p className="text-gray-500 text-sm mt-1">Welcome back, {currentUser?.name || "Admin"}! Here's your task summary.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-            <StatCard title="Total Tasks" value={stats.total} icon={<IoDocumentText size={24} />} color="bg-blue-100 text-blue-600" />
-            <StatCard title="Completed" value={stats.completed} icon={<FaCheckCircle size={24} />} color="bg-green-100 text-green-600" />
-            <StatCard title="In Progress" value={stats.inProgress} icon={<FaClock size={24} />} color="bg-yellow-100 text-yellow-600" />
-            <StatCard title="Pending" value={stats.pending} icon={<FaChartLine size={24} />} color="bg-gray-100 text-gray-600" />
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h2>
-            {tasks.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No tasks yet. Create your first task!</p>
-            ) : (
-              <div className="space-y-3">
-                {tasks.slice(0, 5).map((task, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-800">{task.student}</p>
-                      <p className="text-sm text-gray-500">{task.tasks[0]}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                      {task.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "tasks" && (
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Student Tasks</h1>
-              <p className="text-gray-500 text-sm mt-1">Manage and assign tasks to students</p>
+    <div className="min-h-screen bg-white">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <Image src={logo} alt="UniSys" width={36} height={36} className="rounded-lg" />
+              <span className="text-xl font-bold text-gray-800 tracking-tight">UniSys</span>
             </div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-8">
+              <Link href="#features" className="text-gray-600 hover:text-gray-900 font-medium transition">Features</Link>
+              <Link href="#about" className="text-gray-600 hover:text-gray-900 font-medium transition">About</Link>
+              <Link href="#contact" className="text-gray-600 hover:text-gray-900 font-medium transition">Contact</Link>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="hidden md:flex items-center gap-4">
+              <Link
+                href="/login"
+                className="text-gray-600 hover:text-gray-900 font-medium transition"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition shadow-sm"
+              >
+                Dashboard
+                <FiArrowRight size={18} />
+              </Link>
+            </div>
+
+            {/* Mobile Menu Button */}
             <button
-              onClick={() => setFormVisible(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow-sm transition"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-gray-600 hover:text-gray-900 transition"
             >
-              <MdAdd size={20} /> Add Task
+              {mobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
             </button>
           </div>
-
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <input
-              type="text"
-              placeholder="Search by student or task..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-400"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-
-          {filteredTasks.length === 0 ? (
-            <div className="text-center py-20 text-gray-400 bg-white rounded-xl border border-gray-200">
-              <p className="text-lg font-medium">No tasks found</p>
-              <p className="text-sm mt-1">Try adjusting your search or add a new task</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredTasks.map((item, index) => (
-                <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h2 className="font-semibold text-gray-800 text-base">{item.student}</h2>
-                        <select
-                          value={item.status}
-                          onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(item.status)}`}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                      </div>
-                      <ul className="mt-2 space-y-1">
-                        {item.tasks.map((task, idx) => (
-                          <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
-                            <span className="text-blue-500 mt-0.5">•</span>
-                            {task}
-                          </li>
-                        ))}
-                      </ul>
-                      {item.dueDate && (
-                        <p className="text-xs text-gray-400 mt-3">
-                          Due: {new Date(item.dueDate).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button onClick={() => handleEdit(index)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition">
-                        <MdEdit size={18} />
-                      </button>
-                      <button onClick={() => handleDelete(index)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                        <MdDelete size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      )}
 
-      {activeTab === "bookmarks" && <Bookmarks />}
-
-      {/* Task Form Modal */}
-      {formVisible && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-800">{editIndex !== null ? "Edit Task" : "Add Task"}</h2>
-              <button onClick={handleFormClose} className="text-gray-400 hover:text-gray-600 transition text-xl">✕</button>
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-100">
+            <div className="px-4 py-4 space-y-3">
+              <Link href="#features" className="block py-2 text-gray-600 hover:text-gray-900 font-medium">Features</Link>
+              <Link href="#about" className="block py-2 text-gray-600 hover:text-gray-900 font-medium">About</Link>
+              <Link href="#contact" className="block py-2 text-gray-600 hover:text-gray-900 font-medium">Contact</Link>
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900 font-medium">Sign In</Link>
+                <Link href="/admin" className="block py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg text-center">Dashboard</Link>
+              </div>
             </div>
+          </div>
+        )}
+      </nav>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Student Name</label>
-                <input
-                  type="text"
-                  value={formData.student}
-                  onChange={(e) => setFormData({ ...formData, student: e.target.value })}
-                  className={`w-full px-4 py-2.5 bg-gray-50 border ${formErrors.student ? "border-red-400" : "border-gray-200"} rounded-lg text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition`}
-                  placeholder="Enter student name"
-                />
-                {formErrors.student && <p className="text-red-500 text-xs mt-1">{formErrors.student}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Tasks <span className="text-gray-400">(comma separated)</span></label>
-                <input
-                  type="text"
-                  value={formData.tasks}
-                  onChange={(e) => setFormData({ ...formData, tasks: e.target.value })}
-                  className={`w-full px-4 py-2.5 bg-gray-50 border ${formErrors.tasks ? "border-red-400" : "border-gray-200"} rounded-lg text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition`}
-                  placeholder="Quiz tomorrow, Submit assignment"
-                />
-                {formErrors.tasks && <p className="text-red-500 text-xs mt-1">{formErrors.tasks}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Due Date (Optional)</label>
-                <input
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 text-sm focus:outline-none focus:border-blue-400"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-
-              <button
-                onClick={handleFormSubmit}
-                className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition text-sm shadow-sm"
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-gray-50 via-white to-blue-50/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+          <div className="text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full mb-6">
+              <MdSchool className="text-blue-500" size={20} />
+              <span className="text-sm font-medium text-blue-600">Empowering Education</span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+              Streamline Your
+              <span className="text-blue-500"> Educational</span> Management
+            </h1>
+            <p className="text-lg sm:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
+              UniSys is a comprehensive Learning Management System designed to simplify task management, 
+              enhance collaboration, and drive student success through intelligent workflows.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/admin"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-500/25"
               >
-                Save Task
-              </button>
+                Get Started
+                <FiArrowRight size={20} />
+              </Link>
+              <Link
+                href="#features"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl border border-gray-200 transition"
+              >
+                Learn More
+              </Link>
             </div>
           </div>
         </div>
-      )}
-    </Shell>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-white border-y border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {STATS.map((stat, index) => (
+              <div key={index} className="text-center">
+                <p className="text-3xl sm:text-4xl font-bold text-blue-500 mb-2">{stat.value}</p>
+                <p className="text-gray-600 font-medium">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-20 lg:py-28 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Powerful Features</h2>
+            <p className="text-lg text-gray-600">
+              Everything you need to manage your educational institution efficiently and effectively.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {FEATURES.map((feature, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-6 border border-gray-200 hover:shadow-lg hover:border-blue-200 transition group"
+              >
+                <div className="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 mb-4 group-hover:bg-blue-500 group-hover:text-white transition">
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section id="about" className="py-20 lg:py-28 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
+                About <span className="text-blue-500">UniSys</span>
+              </h2>
+              <p className="text-lg text-gray-600 mb-6 leading-relaxed">
+                UniSys was built with a vision to transform educational management through technology. 
+                We believe that efficient administration leads to better learning outcomes.
+              </p>
+              <ul className="space-y-4">
+                {[
+                  "Modern, intuitive interface designed for ease of use",
+                  "Secure, scalable architecture built for institutions of all sizes",
+                  "Continuous updates based on educational best practices",
+                  "Dedicated support team committed to your success"
+                ].map((item, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <FiCheck className="text-green-600" size={14} />
+                    </div>
+                    <span className="text-gray-700">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 text-white">
+              <h3 className="text-2xl font-bold mb-4">Why Choose UniSys?</h3>
+              <p className="text-blue-100 mb-6 leading-relaxed">
+                Our platform combines powerful functionality with an elegant design, making educational 
+                management simpler and more effective than ever before.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                  <p className="text-2xl font-bold mb-1">Fast</p>
+                  <p className="text-sm text-blue-100">Lightning quick performance</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                  <p className="text-2xl font-bold mb-1">Secure</p>
+                  <p className="text-sm text-blue-100">Enterprise-grade security</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                  <p className="text-2xl font-bold mb-1">Simple</p>
+                  <p className="text-sm text-blue-100">No training required</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                  <p className="text-2xl font-bold mb-1">Reliable</p>
+                  <p className="text-sm text-blue-100">99.9% uptime guarantee</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 lg:py-28 bg-gradient-to-br from-gray-900 to-gray-800">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Ready to Transform Your Institution?
+          </h2>
+          <p className="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">
+            Join thousands of educational institutions already using UniSys to streamline their operations 
+            and enhance student success.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/admin"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-500/25"
+            >
+              Get Started Now
+              <FiArrowRight size={20} />
+            </Link>
+            <Link
+              href="/login"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition backdrop-blur-sm"
+            >
+              Sign In
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer id="contact" className="bg-gray-50 border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Brand */}
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex items-center gap-3 mb-4">
+                <Image src={logo} alt="UniSys" width={32} height={32} className="rounded-lg" />
+                <span className="text-lg font-bold text-gray-800">UniSys</span>
+              </div>
+              <p className="text-gray-600 mb-4 max-w-sm">
+                Empowering educational institutions with modern management tools. 
+                Simplify administration, enhance learning.
+              </p>
+              <p className="text-sm text-gray-500">© 2025 UniSys. All rights reserved.</p>
+            </div>
+
+            {/* Links */}
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-4">Product</h4>
+              <ul className="space-y-2">
+                <li><Link href="#features" className="text-gray-600 hover:text-gray-900 transition">Features</Link></li>
+                <li><Link href="/admin" className="text-gray-600 hover:text-gray-900 transition">Dashboard</Link></li>
+                <li><Link href="/login" className="text-gray-600 hover:text-gray-900 transition">Sign In</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-4">Support</h4>
+              <ul className="space-y-2">
+                <li><span className="text-gray-600">help@unisys.edu</span></li>
+                <li><span className="text-gray-600">+1 (555) 123-4567</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

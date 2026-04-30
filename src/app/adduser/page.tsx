@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Shell } from "@/app/components/Shell";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: <IoHomeSharp /> },
+  { href: "/admin", label: "Dashboard", icon: <IoHomeSharp /> },
   { href: "/adduser", label: "Add User", icon: <IoPersonAddSharp /> },
   { href: "/showuser", label: "Show Users", icon: <FaUsers /> },
   { href: "/bookmarks", label: "Saved Sites", icon: <FaBookmark /> },
